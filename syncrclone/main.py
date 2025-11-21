@@ -416,7 +416,7 @@ class SyncRClone:
                 if not fileBp:
                     debug(f"File '{path}' is new on B")
                     self.newB.append(path)  # B is new
-                elif self.compare(fileB, fileBp):
+                elif self.compare(fileB, fileBp, with_prev=True):
                     debug(f"File '{path}' deleted on A")
                     self.delB.append(path)  # B must have been deleted on A
                 else:
@@ -430,7 +430,7 @@ class SyncRClone:
                 if not fileAp:
                     debug(f"File '{path}' is new on A")
                     self.newA.append(path)  # A is new
-                elif self.compare(fileA, fileAp):
+                elif self.compare(fileA, fileAp, with_prev=True):
                     debug(f"File '{path}' deleted on A")
                     self.delA.append(path)  # A must have been deleted on B
                 else:
@@ -442,8 +442,8 @@ class SyncRClone:
 
             # We *know* they do not agree since this common ones were removed.
             # Now must decide if this is a conflict or just one was modified
-            compA = self.compare(fileA, fileAp)
-            compB = self.compare(fileB, fileBp)
+            compA = self.compare(fileA, fileAp, with_prev=True)
+            compB = self.compare(fileB, fileBp, with_prev=True)
 
             debug(
                 f"Resolving:\n{json.dumps({'A':fileA,'Ap':fileAp,'B':fileB,'Bp':fileB},indent=1)}"
@@ -649,7 +649,7 @@ class SyncRClone:
 
         trans.extend(new)
 
-    def compare(self, file1, file2):
+    def compare(self, file1, file2, *, with_prev=False):
         """Compare file1 and file2 (may be A or B or curr and prev)"""
         config = self.config
         compare = (
@@ -686,6 +686,17 @@ class SyncRClone:
                 warnings.warn(msg)
                 compare = config.hash_fail_fallback
             else:
+                if with_prev:
+                    # we've failed here because we don't know how to handle changes in
+                    # hash settings between runs which is different to a remote not
+                    # providing (the required) hashes
+                    msg = "Available hashes changed between runs."
+                    msg += "\nThis could be because file hashing was not enabled in the previous run."
+                    msg += "\nTo Fix this, you could:"
+                    msg += "\n- pass the --reset-state cli arg to ignore previous run information"
+                    msg += "\n- change the 'hash_fail_fallback' option to something other than None"
+                    msg += "\n- revert back to the hash settings used in the previous run"
+
                 raise ValueError(msg)
 
         # Check size either way
